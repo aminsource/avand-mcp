@@ -29,7 +29,7 @@ For development, run `npm run dev`. Run tests with `npm test`.
 | `merchants` | `list` | `pageNum`, `pageSize`, optional `queryName` | `GET merchant/brief` |
 | `organizations` | `list` | `pageNum`, `pageSize`, optional `queryName` | `GET organization/brief` |
 
-Pages start at 0 and `pageSize` is limited to 20. The server returns the Avand response's `data` field as MCP text.
+Pages start at 0 and `pageSize` is limited to 20. The server returns the Avand response's `data` field when present, or the full response otherwise, as MCP text.
 
 ## Authentication and request flow
 
@@ -41,17 +41,60 @@ Pages start at 0 and `pageSize` is limited to 20. The server returns the Avand r
 
 The proxy listens only on `127.0.0.1`. On restart, supply the current refresh token if Avand rotated it. The three endpoints and response shapes are covered by local tests with sample responses; confirm them against an authorized development API before relying on live data.
 
-## MCP client configuration
+## Agent setup: Codex and Hermes
 
-Build first, then point your MCP client at the absolute path to `dist/index.js`. Example for Codex:
+Build first, then point the client at the absolute path to `dist/index.js`. The server loads the project-root `.env` itself, so credentials do not need to be repeated in client configuration. `AGENTS.md` contains the shared usage and development instructions for agents working in this repository.
+
+### Codex
+
+Run from this project directory:
+
+```bash
+codex mcp add avand -- node "$(pwd)/dist/index.js"
+codex mcp get avand
+```
+
+Or add the equivalent entry to `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.avand]
 command = "node"
-args = ["/absolute/path/to/avand-mcp-server/dist/index.js"]
-
-[mcp_servers.avand.env]
-AVAND_BASE_URL = "https://your-avand-api.example.com"
-AVAND_REFRESH_TOKEN = "your-refresh-token"
-AVAND_BUSINESS_ENTITY_ID = "your-business-entity-id"
+args = ["/absolute/path/to/avand-mcp/dist/index.js"]
 ```
+
+Restart Codex after changing the configuration. The tools appear as `organizations`, `merchants`, and `transactions` under the Avand MCP server.
+
+### Hermes Agent
+
+Add this entry under `mcp_servers` in `~/.hermes/config.yaml`:
+
+```yaml
+mcp_servers:
+  avand:
+    command: node
+    args:
+      - /absolute/path/to/avand-mcp/dist/index.js
+    enabled: true
+```
+
+Merge this with an existing `mcp_servers` section rather than adding a second one. Restart Hermes after changing the configuration. Hermes exposes the deferred tools as `mcp__avand__organizations`, `mcp__avand__merchants`, and `mcp__avand__transactions`.
+
+### Example tool calls
+
+List the first page of organizations:
+
+```json
+{"action":"list","pageNum":0,"pageSize":20}
+```
+
+Pass that object to the `organizations` tool. For a name search, pass `queryName` to `organizations` or `merchants`. Continue with subsequent page numbers when `totalCount` exceeds the returned page size. The `transactions` tool accepts only pagination. These tools read data; they do not create or update records.
+
+### Troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| Server fails at startup | `dist/index.js` exists and all three required `.env` values are set. |
+| No tools appear | Rebuild, check the absolute path in client configuration, and restart the client. |
+| Authentication fails | Use a current refresh token from an authorized Avand login; restart after updating `.env`. |
+| Empty or unexpected results | Check the selected `AVAND_BUSINESS_ENTITY_ID`, filter, and page number. |
+| Only part of a list appears | Fetch pages until the returned count reaches `totalCount`. |
