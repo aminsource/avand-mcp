@@ -41,6 +41,30 @@ export function startProxy(): Promise<{ port: number; close: () => Promise<void>
         res.status(400).json({ error: "Invalid pagination or filter" });
         return;
       }
+      // Forward all additional filter query params (validated allowlist) to the Avand backend.
+      const BOOL_FILTERS = new Set(["enabled", "hasBroker", "queryHasAgreement", "isPayed", "isCanceled", "isClosed"]);
+      const ALLOWED_FILTERS = new Set([
+        "state", "city", "enabled", "hasBroker", "queryHasAgreement", "fromCreatedAt", "toCreatedAt",
+        "fromDate", "toDate", "isPayed", "isCanceled", "isClosed", "organizationId", "merchantId",
+        "brokerId", "fromAmount", "toAmount", "transactionType", "customerNationalCode", "cardNumber",
+        "customerFirstName", "customerLastName", "merchantCode", "terminalId", "billNumber", "id",
+      ]);
+      for (const [key, value] of Object.entries(req.query)) {
+        if (!ALLOWED_FILTERS.has(key)) continue;
+        if (value === undefined) continue;
+        if (BOOL_FILTERS.has(key)) {
+          // The backend receives params as base64-encoded JSON, so booleans must be real booleans.
+          if (value === "true") params[key] = true;
+          else if (value === "false") params[key] = false;
+          continue;
+        }
+        if (typeof value === "string") {
+          if (value.length > 100) { res.status(400).json({ error: `Filter ${key} too long` }); return; }
+          params[key] = value;
+        } else if (Array.isArray(value) && value.every((v) => typeof v === "string")) {
+          params[key] = value.filter((v) => v.length <= 100);
+        }
+      }
       res.json(await backend.get(path, params));
     } catch (error) {
       res.status(502).json({ error: "Avand request failed" });

@@ -1,6 +1,6 @@
 import type { AuthSession } from "./auth.js";
 
-const ALLOWED_PATHS = new Set(["invoice", "merchant/brief", "organization/brief"]);
+const ALLOWED_PATHS = new Set(["invoice", "merchant", "merchant/brief", "organization", "organization/brief"]);
 
 export function createBackendClient(input: {
   baseUrl: string;

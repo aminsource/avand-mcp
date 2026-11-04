@@ -9,17 +9,32 @@ const schema = z.object({
   pageNum: z.number().int().min(0).default(0),
   pageSize: z.number().int().min(1).max(20).default(10),
   queryName: z.string().max(100).optional(),
+  state: z.string().max(50).optional(),
+  city: z.string().max(50).optional(),
+  enabled: z.boolean().optional(),
+  queryHasAgreement: z.boolean().optional(),
 });
 
 type Params = z.infer<typeof schema>;
 
 export async function handle(params: Params): Promise<ToolResult> {
-  const searchParams: Record<string, string | number> = { pageNum: params.pageNum, pageSize: params.pageSize };
-  if (params.queryName !== undefined) searchParams.queryName = params.queryName;
-  const res = await proxyFetch(buildBackendPath("merchant/brief"), { searchParams });
+  const searchParams: Record<string, string | number | boolean> = { pageNum: params.pageNum, pageSize: params.pageSize };
+  for (const key of ["queryName", "state", "city", "enabled", "queryHasAgreement"] as const) {
+    const value = params[key];
+    if (value !== undefined) searchParams[key] = value;
+  }
+  const hasFullFilters = ["state", "city", "enabled", "queryHasAgreement"].some(
+    (k) => params[k as keyof Params] !== undefined
+  );
+  const path = hasFullFilters ? "merchant" : "merchant/brief";
+  const res = await proxyFetch(buildBackendPath(path), { searchParams });
   return res.ok ? result(toText(unwrap(res.data))) : errResult(res);
 }
 
 export function register(server: McpServer): void {
-  server.registerTool("merchants", { description: "List brief Avand merchants.", inputSchema: schema }, handle);
+  server.registerTool("merchants", {
+    description:
+      "List Avand merchants. Filters (state, city, enabled, queryHasAgreement) use the detailed 'merchant' endpoint; otherwise the brief endpoint is used.",
+    inputSchema: schema,
+  }, handle);
 }

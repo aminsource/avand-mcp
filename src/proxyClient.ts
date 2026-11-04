@@ -6,7 +6,7 @@ export type ProxyResponse<T = unknown> =
 
 export async function proxyFetch<T = unknown>(
   path: string,
-  options: { method?: string; body?: unknown; searchParams?: Record<string, string | number> } = {}
+  options: { method?: string; body?: unknown; searchParams?: Record<string, string | number | boolean> } = {}
 ): Promise<ProxyResponse<T>> {
   const { method = "GET", body, searchParams } = options;
   const url = new URL(`${getProxyBaseUrl()}/proxy${path.startsWith("/") ? path : `/${path}`}`);
